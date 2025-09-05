@@ -304,9 +304,19 @@ def get_multiple_quality_streams(video_url: str) -> Dict[str, Dict]:
         base_cmd = [
             'yt-dlp',
             '--no-download',
-            '--user-agent', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36',
+            '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            '--add-header', 'Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            '--add-header', 'Accept-Language:en-US,en;q=0.5',
+            '--add-header', 'Accept-Encoding:gzip, deflate',
+            '--add-header', 'DNT:1',
+            '--add-header', 'Connection:keep-alive',
+            '--add-header', 'Upgrade-Insecure-Requests:1',
             '--referer', 'https://www.youtube.com/',
-            '--force-ipv4'
+            '--socket-timeout', '30',
+            '--retries', '3',
+            '--fragment-retries', '3',
+            '--force-ipv4',
+            '--no-cache-dir'
         ]
         
         cmd = base_cmd + ['--list-formats', '--format', 'best[ext=mp4]', video_url]
@@ -447,8 +457,19 @@ def get_video_info_with_api(video_url: str) -> dict:
             'yt-dlp',
             '--no-download',
             '--dump-json',
-            '--user-agent', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36',
+            '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            '--add-header', 'Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            '--add-header', 'Accept-Language:en-US,en;q=0.5',
+            '--add-header', 'Accept-Encoding:gzip, deflate',
+            '--add-header', 'DNT:1',
+            '--add-header', 'Connection:keep-alive',
+            '--add-header', 'Upgrade-Insecure-Requests:1',
             '--referer', 'https://www.youtube.com/',
+            '--socket-timeout', '30',
+            '--retries', '3',
+            '--fragment-retries', '3',
+            '--force-ipv4',
+            '--no-cache-dir',
             video_url
         ]
         
