@@ -301,23 +301,18 @@ def get_multiple_quality_streams_cached(video_url: str) -> Dict[str, Dict]:
 def get_multiple_quality_streams(video_url: str) -> Dict[str, Dict]:
     """Get multiple quality streams using yt-dlp"""
     try:
-        cmd = [
+        base_cmd = [
             'yt-dlp',
             '--no-download',
-            '--list-formats',
-            '--format', 'best[ext=mp4]',
-            video_url
+            '--user-agent', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36',
+            '--referer', 'https://www.youtube.com/',
+            '--force-ipv4'
         ]
         
+        cmd = base_cmd + ['--list-formats', '--format', 'best[ext=mp4]', video_url]
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         
-        cmd_json = [
-            'yt-dlp',
-            '--no-download',
-            '--dump-json',
-            video_url
-        ]
-        
+        cmd_json = base_cmd + ['--dump-json', video_url]
         json_result = subprocess.run(cmd_json, capture_output=True, text=True, check=True)
         video_info = json.loads(json_result.stdout)
         
