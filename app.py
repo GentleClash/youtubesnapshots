@@ -447,6 +447,8 @@ def get_video_info_with_api(video_url: str) -> dict:
             'yt-dlp',
             '--no-download',
             '--dump-json',
+            '--user-agent', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36',
+            '--referer', 'https://www.youtube.com/',
             video_url
         ]
         
