@@ -1,0 +1,25 @@
+[project]
+name = "youtubesnapshots"
+version = "0.1.0"
+description = "Get snapshot of any YouTube video at given timestamp in available qualities"
+authors = [
+    {name = "GentleClash",email = "ayushbajpai016@gmail.com"}
+]
+license = {text = "GNU General Public License v3.0"}
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi (>=0.116.1,<0.117.0)",
+    "uvicorn[standard] (>=0.35.0,<0.36.0)",
+    "python-multipart (>=0.0.20,<0.0.21)",
+    "yt-dlp (>=2025.8.27,<2026.0.0)",
+    "pydantic (>=2.11.7,<3.0.0)",
+    "google-cloud-storage (>=3.3.1,<4.0.0)",
+    "python-dotenv (>=1.1.1,<2.0.0)",
+    "aiofiles (>=24.1.0,<25.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
