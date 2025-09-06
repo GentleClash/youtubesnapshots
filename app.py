@@ -13,6 +13,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from pydantic import BaseModel
 from collections import defaultdict, deque
 from gcscache import GCSCache
+from localcache import LocalCache
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -20,9 +21,6 @@ load_dotenv()
 request_counts = defaultdict(deque)
 RATE_LIMIT = 10
 RATE_WINDOW = 60
-
-# Cache
-gcs_cache = GCSCache(os.getenv("GCS_BUCKET_NAME", "youtube-snapshots"))
 
 class VideoRequest(BaseModel):
     url: str
@@ -33,7 +31,7 @@ class VideoRequest(BaseModel):
 
 # Fast multi-level cache implementation
 class FastCache:
-    def __init__(self, gcs_cache: GCSCache):
+    def __init__(self, gcs_cache: GCSCache | LocalCache) -> None:
         self.gcs_cache = gcs_cache
         self.memory_cache = {}  # In-memory cache
         self.metadata_cache = {}  # Cache for metadata
@@ -177,30 +175,75 @@ class StreamCache:
         }
 
 # Initialize caches
-fast_cache = FastCache(gcs_cache)
+def initialize_cache() -> GCSCache | LocalCache:
+    """Initialize cache based on Google Cloud authentication availability"""
+    google_creds_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+    
+    # Check if Google Cloud credentials are available and valid
+    if google_creds_path and os.path.exists(google_creds_path):
+        try:
+            # Try to initialize GCS cache
+            bucket_name = os.getenv("GCS_BUCKET_NAME", "youtube-snapshots")
+            gcs_cache = GCSCache(bucket_name)
+            
+            # Test GCS connection by trying to access bucket
+            # This will raise an exception if credentials are invalid
+            _ = gcs_cache.bucket.exists()
+            
+            print(f"✅ Using GCS Cache (bucket: {bucket_name})")
+            return gcs_cache
+            
+        except Exception as e:
+            print(f"⚠️  GCS Cache initialization failed: {e}")
+            print("🔄 Falling back to Local Cache")
+    else:
+        print("⚠️  GOOGLE_APPLICATION_CREDENTIALS not found or file doesn't exist")
+        print("🔄 Using Local Cache")
+    
+    # Fallback to local cache
+    cache_dir = os.getenv("LOCAL_CACHE_DIR", "cache")
+    local_cache = LocalCache(cache_dir)
+    print(f"✅ Using Local Cache (directory: {cache_dir})")
+    return local_cache
+
+cache_backend = initialize_cache()
+fast_cache = FastCache(cache_backend)
 stream_cache = StreamCache()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: Clean old files
+    # Startup: Clean old files from working directory only
     import glob
     for f in glob.glob("screenshot_*.png"):
         try:
             os.remove(f)
         except:
             pass
-    print("Application started - cleaned old screenshots")
+    for f in glob.glob("*.png"):  # Clean any lingering PNG files
+        try:
+            if "_" in f and any(qual in f for qual in ['ultra', 'high', 'medium', 'low']):
+                os.remove(f)
+        except:
+            pass
+    print("Application started - cleaned old screenshots from working directory")
     
     yield
     
-    # Shutdown: Clean up
+    # Shutdown: Clean up working directory only
     for f in glob.glob("screenshot_*.png"):
         try:
             os.remove(f)
         except:
             pass
-    print("Application shutting down - cleaned screenshots")
+    for f in glob.glob("*.png"):  # Clean any lingering PNG files
+        try:
+            if "_" in f and any(qual in f for qual in ['ultra', 'high', 'medium', 'low']):
+                os.remove(f)
+        except:
+            pass
+    print("Application shutting down - cleaned screenshots from working directory")
+
 
 app = FastAPI(
     title="YouTube Screenshot Tool",
@@ -1062,12 +1105,20 @@ async def create_screenshots(request: VideoRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 async def cache_screenshot_background(video_id: str, timestamp: int, screenshot: Dict):
-    """Background caching of individual screenshots"""
+    """Background caching of individual screenshots with cleanup"""
     try:
         if os.path.exists(screenshot['filename']):
             with open(screenshot['filename'], 'rb') as f:
                 image_data = f.read()
                 await fast_cache.store_screenshot(video_id, timestamp, screenshot['quality'], image_data)
+            
+            # Clean up the working directory file after caching
+            try:
+                os.remove(screenshot['filename'])
+                print(f"Cleaned up working directory file: {screenshot['filename']}")
+            except Exception as cleanup_error:
+                print(f"Warning: Failed to clean up {screenshot['filename']}: {cleanup_error}")
+                
     except Exception as e:
         print(f"Background cache error for {screenshot['quality']}: {e}")
 
@@ -1143,34 +1194,36 @@ async def get_thumbnails(video_id: str):
 
 @app.get("/preview/{filename}")
 async def preview_screenshot(filename: str):
-    """Serve screenshot preview from cache or disk"""
+    """Serve screenshot preview from cache or working directory"""
     
     # Parse filename to get video_id, timestamp, quality
     if filename.startswith("screenshot_"):
         filename = filename[11:]
     
-    # Try to get from memory cache first
+    # Try to get from cache first
     parts = filename.replace('.png', '').split('_')
     if len(parts) >= 3:
         video_id = '_'.join(parts[:-2])
         timestamp = int(parts[-2])
         quality = parts[-1]
         
-        # Check memory cache
+        # Check cache
         image_data = await fast_cache.get_screenshot(video_id, timestamp, quality)
         if image_data:
             return Response(content=image_data, media_type="image/png")
     
-    # Fallback to disk file
-    if os.path.exists(filename):
-        return FileResponse(filename, media_type="image/png")
+    # Fallback to working directory file (for recently generated screenshots)
+    working_dir_files = [filename, f"screenshot_{filename}"]
+    for potential_file in working_dir_files:
+        if os.path.exists(potential_file):
+            return FileResponse(potential_file, media_type="image/png")
     
     raise HTTPException(status_code=404, detail="Screenshot not found")
 
 
 @app.get("/download/{filename}")
 async def download_screenshot(filename: str):
-    """Serve screenshot download from cache or disk"""
+    """Serve screenshot download from cache or working directory"""
     
     # Remove screenshot_ prefix if present
     if filename.startswith("screenshot_"):
@@ -1183,7 +1236,7 @@ async def download_screenshot(filename: str):
         timestamp = int(parts[-2])
         quality = parts[-1]
         
-        # Check memory/GCS cache first
+        # Check cache first
         image_data = await fast_cache.get_screenshot(video_id, timestamp, quality)
         if image_data:
             return Response(
@@ -1192,13 +1245,15 @@ async def download_screenshot(filename: str):
                 headers={"Content-Disposition": f"attachment; filename={filename}"}
             )
     
-    # Fallback to disk file
-    if os.path.exists(filename):
-        return FileResponse(
-            filename, 
-            media_type="image/png",
-            headers={"Content-Disposition": f"attachment; filename={filename}"}
-        )
+    # Fallback to working directory file (for recently generated screenshots)
+    working_dir_files = [filename, f"screenshot_{filename}"]
+    for potential_file in working_dir_files:
+        if os.path.exists(potential_file):
+            return FileResponse(
+                potential_file, 
+                media_type="image/png",
+                headers={"Content-Disposition": f"attachment; filename={filename}"}
+            )
     
     raise HTTPException(status_code=404, detail="Screenshot not found")
 
