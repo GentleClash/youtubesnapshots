@@ -15,12 +15,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app.py .
 COPY gcscache.py .
+COPY localcache.py .
 
 
-RUN useradd -r -s /bin/false appuser && \
-    chown -R appuser:appuser /app && \
+RUN groupadd -r appuser && useradd -r -g appuser -s /bin/false -M appuser && \
     mkdir -p /tmp/screenshots && \
-    chown -R appuser:appuser /tmp/screenshots
+    chown -R appuser:appuser /app /tmp/screenshots 
 
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
