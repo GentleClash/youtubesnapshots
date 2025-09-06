@@ -145,7 +145,6 @@ The application uses a multi-level caching system:
 
 - [yt-dlp](https://github.com/yt-dlp/yt-dlp): For video information extraction
 - [FFmpeg](https://ffmpeg.org/): For screenshot generation
-- [FastAPI](https://fastapi.tiangolo.com/): Web framework
 
 ## License
 
