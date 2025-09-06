@@ -414,12 +414,13 @@ def generate_screenshot(stream_url: str, timestamp: int, video_id: str, quality:
         cmd = [
             'ffmpeg',
             '-ss', str(timestamp),    
-            '-i', stream_url,
-            '-frames:v', '1',         # Extract exactly 1 frame
+            '-i', f'{stream_url}',
+            '-frames:v', '1',        # Extract exactly 1 frame
             '-q:v', '2',             # High quality encoding
             '-an',                   # Disable audio processing (saves time)
             '-y',                    # Overwrite
-            output_file
+            '--',  
+            f'{output_file}'
         ]
         
         subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -500,7 +501,7 @@ def get_video_info_with_api(video_url: str) -> dict:
             'yt-dlp',
             '--no-download',
             '--dump-json',
-            '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            '--user-agent', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36',
             '--add-header', 'Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
             '--add-header', 'Accept-Language:en-US,en;q=0.5',
             '--add-header', 'Accept-Encoding:gzip, deflate',
